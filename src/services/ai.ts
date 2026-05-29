@@ -1,52 +1,22 @@
 import { toast } from 'sonner';
 import { ResumeData } from '../types';
 import { apiFetch } from './api';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-// SECURITY WARNING: Storing and using your Gemini API key in client-side environment variables
-// (like VITE_GEMINI_API_KEY) exposes the key to any user visiting the application in their browser.
-// Ensure your API key has appropriate GCP restrictions or is kept purely server-side for production.
 
 export interface ChatMessage {
   role: 'user' | 'model';
-  parts: [{ text: string }];
+  parts: { text: string }[];
 }
 
 export async function sendChatMessage(message: string, history: ChatMessage[] = [], systemInstruction?: string) {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
-
-  if (!apiKey) {
-    const errorMsg = 'VITE_GEMINI_API_KEY has not been configured in your Secrets/Environment settings.';
-    console.error(errorMsg);
-  }
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-1.5-flash',
-    ...(systemInstruction ? { systemInstruction } : {})
+  const promise = apiFetch<{ text: string }>('/api/chat', {
+    method: 'POST',
+    body: JSON.stringify({ message, history, systemInstruction }),
   });
 
-  const promise = (async () => {
-    if (history && history.length > 0) {
-      const chat = model.startChat({
-        history: history.map(h => ({
-          role: h.role,
-          parts: h.parts.map(p => ({ text: p.text }))
-        }))
-      });
-      const result = await chat.sendMessage(message);
-      return { text: result.response.text() || '' };
-    } else {
-      const result = await model.generateContent(message);
-      return { text: result.response.text() || '' };
-    }
-  })();
-
   toast.promise(promise, {
-    loading: 'Generating AI Response (Client SDK)...',
-    success: 'AI Response compiled!',
-    error: 'Failed to generate AI response. Please verify VITE_GEMINI_API_KEY.',
+    loading: 'Generating AI response...',
+    success: 'AI response compiled!',
+    error: 'Failed to generate AI response. Please try again.',
   });
 
   return promise;
@@ -110,102 +80,28 @@ ${JSON.stringify(data, null, 2)}`;
 }
 
 export async function analyzeResume(resumeText: string, jobDescription?: string) {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
-
-  if (!apiKey) {
-    const errorMsg = 'VITE_GEMINI_API_KEY has not been configured in your Secrets/Environment settings.';
-    console.error(errorMsg);
-  }
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+  const promise = apiFetch<any>('/api/analyze', {
+    method: 'POST',
+    body: JSON.stringify({ resumeText, jobDescription }),
   });
 
-  const prompt = `You are Jobspark.AI, an expert ATS resume optimizer and executive recruiter.
-Analyze this resume text and provide a comprehensive feedback assessment.
-If a Job Description is provided, also perform an ATS match comparison.
-
-Resume Text:
-${resumeText}
-
-${jobDescription ? `Job Description:\n${jobDescription}\n` : ''}
-
-You must return a raw JSON object matching this structure:
-{
-  "atsScore": 85,
-  "recruiterImpressionScore": 80,
-  "missingKeywords": ["TypeScript", "Docker"],
-  "improvementSuggestions": ["Add metrics/percentages to work bullets", "Expand professional summary"],
-  "weakSections": ["Projects", "Awards"],
-  "matchScore": 75,
-  "feedback": "Your resume has a strong foundation, but..."
-}
-
-Ensure values are objective and useful.
-IMPORTANT: Return ONLY the JSON object. Do not wrap the JSON output in markdown code blocks or any other commentary.`;
-
-  const promise = (async () => {
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    });
-
-    const responseText = result.response.text();
-    try {
-      const cleaned = responseText.replace(/^```json/i, '').replace(/```$/i, '').trim();
-      return JSON.parse(cleaned);
-    } catch (parseError) {
-      console.error('JSON parsing failed. Attempting to extract JSON substring.', parseError);
-      const jsonStart = responseText.indexOf('{');
-      const jsonEnd = responseText.lastIndexOf('}');
-      if (jsonStart !== -1 && jsonEnd !== -1) {
-        return JSON.parse(responseText.substring(jsonStart, jsonEnd + 1));
-      }
-      throw new Error('AI returned an invalid JSON structure.');
-    }
-  })();
-
   toast.promise(promise, {
-    loading: 'Analyzing resume with AI models (Client SDK)...',
+    loading: 'Analyzing resume with AI models...',
     success: 'Deep analysis completed successfully!',
-    error: (err) => `Analysis failed: ${err.message || 'Client SDK error'}`,
+    error: (err) => `Analysis failed: ${err.message || 'Server error'}`,
   });
 
   return promise;
 }
 
 export async function improveSection(section: string, content: string) {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
-
-  if (!apiKey) {
-    const errorMsg = 'VITE_GEMINI_API_KEY has not been configured in your Secrets/Environment settings.';
-    console.error(errorMsg);
-  }
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+  const promise = apiFetch<{ improved: string }>('/api/improve', {
+    method: 'POST',
+    body: JSON.stringify({ section, content }),
   });
 
-  const prompt = `You are a world-class senior resume editor and career advisor.
-Professionally rewrite and improve the following resume ${section} text to make it sound achievement-oriented, metrics-driven, recruiter-attractive, and ATS-optimized.
-Maintain truthfulness, improve flow, and correct any grammatical errors.
-
-Original Content:
-${content}
-
-Return ONLY the improved text. Do not provide preface, notes, lists, or markdown wrapper blocks. Just raw, polished paragraphs ready to be pasted inside the resume.`;
-
-  const promise = (async () => {
-    const result = await model.generateContent(prompt);
-    return { improved: result.response.text()?.trim() || content };
-  })();
-
   toast.promise(promise, {
-    loading: 'Generating professionally enhanced text (Client SDK)...',
+    loading: 'Generating professionally enhanced text...',
     success: 'Content enhanced successfully!',
     error: 'Failed to enhance content.',
   });

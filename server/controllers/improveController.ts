@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { generateImprovedSection } from "../services/aiService";
 
 export async function improveSection(
   req: Request,
@@ -17,13 +18,9 @@ export async function improveSection(
       });
     }
 
-    // Temporary response
+    const improvedText = await generateImprovedSection(section, content);
     return res.json({
-      improved: `
-Professionally enhanced ${section}:
-
-${content}
-      `,
+      improved: improvedText,
     });
   } catch (error) {
     console.error(error);
