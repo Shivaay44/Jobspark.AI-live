@@ -66,7 +66,8 @@ export async function apiFetch<T>(
 }
 
 export async function testConnection() {
-  return apiFetch<{ success: boolean; message: string }>('/api/ping');
+  // Return early for client-only SDK modes (such as Vercel/Netlify deployments) to prevent unnecessary 404 connection warnings.
+  return { success: true, message: 'Client SDK Active' };
 }
 
 

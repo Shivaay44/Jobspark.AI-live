@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { improveSection } from "../../services/ai";
 
 interface ResumeData {
   summary: string;
@@ -34,21 +35,9 @@ export default function ResumeEditor({
     if (!data.summary.trim()) return;
     setImproving(true);
     try {
-      const response = await fetch("/api/improve", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          section: "summary",
-          content: data.summary,
-        }),
-      });
-      if (response.ok) {
-        const result = await response.json();
-        if (result.improved) {
-          updateField("summary", result.improved.trim());
-        }
+      const result = await improveSection("summary", data.summary);
+      if (result && result.improved) {
+        updateField("summary", result.improved.trim());
       }
     } catch (err) {
       console.error(err);
